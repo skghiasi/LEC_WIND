@@ -29,6 +29,7 @@ DIM pvt_time AS DOUBLE
 DIM chord_length AS DOUBLE
 DIM rotational_speed AS DOUBLE
 DIM start_time_delay AS DOUBLE
+DIM magnitude AS DOUBLE
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;STATES;;;;;;;;;;;;;;;;;;;;;;;
 ;;; 0 : STATE_RPM 
@@ -51,6 +52,7 @@ MEAS_B = 5.1217
 DIST_TO_NOSE = 5.98
 
 deg_step = 1
+'initial position in degrees
 I = 0
 
 start_time_delay = (((1.6668 * DIST_TO_NOSE + 18.702) / 1000 ) + chord_length / 2) / (blade_length * rotational_speed * PI /30 )
@@ -84,6 +86,9 @@ CALL VEC_ADD(translation_vec , vec_relto_center , center)	;; RESET TO A READABLE
 vertical = FIND_VERTICAL_ANGLE(translation_vec)				;; RESET TO A READABLE POSITION
 horizontal = FIND_HORIZONTAL_ANGLE(translation_vec)	;; RESET TO A READABLE POSITION
 
+magnitude = MAG(translation)
+start_time_delay = (((1.6668 * magnitude + 18.702) / 1000 ) + chord_length / 2) / (blade_length * rotational_speed * PI /30 )
+
 MOVEABS A horizontal B vertical								;; RESET TO A READABLE POSITION
 
 ''MOVEABS A -79.0517 B 2.2181
@@ -113,15 +118,15 @@ WEND
 
 CALL PRINT_DBL(duration)
 CALL CONV_BTIME_TO_RPM (duration)
-rpm= CONV_BTIME_TO_RPM (duration)
+rpm = CONV_BTIME_TO_RPM (duration)
 CALL PRINT_DBL(rpm)
 CALL PRINT_DBL (3 * duration / 1000)
 STATE = 1
 'STATE = 2
 WEND
-pvt_time = (3 * duration / 1000)/(360/deg_step)
-CALL PRINT_DBL (pvt_time)
-pvt_time = pvt_time *0.962
+;pvt_time = (3 * duration / 1000)/(360/deg_step)
+;CALL PRINT_DBL (pvt_time)
+;pvt_time = pvt_time * 0.962
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; STATE 1 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 WHILE (STATE == 1)
 
@@ -283,4 +288,8 @@ END FUNCTION
 
 FUNCTION CONV_BTIME_TO_RPM (BYVAL duration AS DOUBLE) AS DOUBLE 
 	CONV_BTIME_TO_RPM = 60/ (3 * duration / 1000)
+END FUNCTION 
+
+FUNCTION MAG( BYREF IN(3) AS DOUBLE ) AS DOUBLE 
+	MAG = SQR(IN(0)^2 + IN(1)^2 + IN(2)^2)
 END FUNCTION 
