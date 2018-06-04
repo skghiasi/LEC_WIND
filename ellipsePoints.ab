@@ -53,6 +53,8 @@ DIM y AS DOUBLE
 DIM z AS DOUBLE 
 DIM meas_omega AS DOUBLE 
 DIM theta0 AS DOUBLE ; theta0 for measurements
+DIM FB AS DOUBLE 
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;STATES;;;;;;;;;;;;;;;;;;;;;;;
 ;;; 0 : STATE_RPM 
@@ -63,11 +65,11 @@ DIM theta0 AS DOUBLE ; theta0 for measurements
 ;WAIT MODE MOVEDONE
 RST = 1
 RUN_PROG = 1
-STATE = -1 
-;STATE = 2
+;STATE = -1 
+STATE = -1
 
 
-radius_proportion = 0.75
+radius_proportion = 0.5
 
 
 cone = 0
@@ -75,9 +77,9 @@ rpm = 11.7
 chord_length = 0.103
 
 
-MEAS_A = -78.1314
-MEAS_B = 5.1217
-DIST_TO_NOSE = 5.98
+MEAS_A = -100.7765
+MEAS_B = 19.4745
+DIST_TO_NOSE = 1.53
 R0 = 0.345
 yaw = 0
 tilt = 0 
@@ -89,7 +91,7 @@ tilt = 0
 ;yaw = 0 
 ;tilt = 8
 
-deg_step = 2
+deg_step = 1
 'initial position in degrees
 theta = 0
 
@@ -168,7 +170,7 @@ WEND
 ;CALL PRINT_DBL(duration)
 meas_rpm = CONV_BTIME_TO_RPM (duration)
 meas_omega = 6 * meas_rpm
-CALL PRINT_DBL(meas_omega)
+;CALL PRINT_DBL(meas_omega)
 ;CALL PRINT_DBL (3 * duration / 1000)
 
 ; CHANGE MEASUREMENTS TO GIMBAL COORDINATES
@@ -183,9 +185,7 @@ z = nose(2) + r_shadow*SIN_DEG(theta0)*SIN_DEG(t)
 xdot = R*meas_omega*COS_DEG(theta0)*COS_DEG(t)*COS_DEG(aprime+yaw) - R*meas_omega*SIN_DEG(theta0)*COS_DEG(aprime+yaw-90)
 ydot = R*meas_omega*COS_DEG(theta0)*COS_DEG(t)*SIN_DEG(aprime+yaw) - R*meas_omega*SIN_DEG(theta0)*SIN_DEG(aprime+yaw-90)
 zdot = R*meas_omega*COS_DEG(theta0)*SIN_DEG(t)
-CALL PRINT_DBL(xdot)
-CALL PRINT_DBL(ydot)
-CALL PRINT_DBL(zdot)
+
 tana = y/x
 adot = (ydot * x - xdot * y)/((x^2) * (1+tana^2))
 theta0 = 0
@@ -201,7 +201,7 @@ tanb = z/SQR(x^2 + y^2)
 bdot = (2*z*zdot*(x^2 + y^2) - z^2 * (2*x*xdot + 2*y*ydot))/(2*tanb*(1+tanb^2)*(x^2 + y^2)^2)
 
 LIN_VEL = (adot + bdot)/2
-CALL PRINT_DBL(LIN_VEL)
+;CALL PRINT_DBL(LIN_VEL)
 
 
 STATE = 1
@@ -228,8 +228,16 @@ WHILE (STATE == 1)
 ;END IF
 
 WHILE (AIN(B,1) < .2)  
-	vel = vel
+	lost_duration = TIMER(); 
 WEND
+;CALL PRINT_DBL(lost_duration)
+;CALL PRINT_DBL(duration)
+IF(FB == 1) THEN 
+	IF(lost_duration > duration * .4) THEN 
+		LIN_VEL = 1.1*LIN_VEL
+		CALL PRINT_DBL(128)
+	END IF 
+END IF 
 
 STATE = 2
 
@@ -259,9 +267,11 @@ IF theta > 360 THEN
 	theta = deg_step
 END IF 
 ;CALL PRINT_DBL(vel)
-IF AIN(B , 1) < 0.2 THEN
+IF AIN(B , 1) < 0.1 THEN
 	STATE = 0
+	FB = 1
 	CLEARTIMER
+	
 END IF 
 WEND
 
