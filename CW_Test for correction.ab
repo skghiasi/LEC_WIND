@@ -15,6 +15,7 @@ DIM STATE AS DOUBLE
 
 DIM nose(3) AS DOUBLE
 
+
 DIM translation_vec(3) AS DOUBLE
  
 DIM vertical AS DOUBLE 
@@ -73,6 +74,7 @@ DIM meas_rpm AS DOUBLE
 DIM startMeas AS DOUBLE
 DIM endMeas AS DOUBLE
 DIM wait_for_second_pulse AS DOUBLE 
+DIM second_meas AS DOUBLE
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;STATES;;;;;;;;;;;;;;;;;;;;;;;
 ;;; 0 : STATE_RPM 
@@ -194,8 +196,19 @@ IF (AIN(B, 1) > .4 && ready_for_measurement == 1) THEN
 	END IF 
 	
 	IF(startMeas == 1 && wait_for_second_pulse == 1) THEN
-		duration = TIMER()
-		endMeas = 1
+		;duration = TIMER()
+		duration = duration + TIMER()
+		startMeas = 0
+		wait_for_second_pulse = 0 
+		ready_for_measurement = 0 
+		
+		IF(second_meas == 2) then 
+			endMeas = 1
+			duration = duration / 3
+		END IF
+		IF(second_meas < 2) then 
+			second_meas = second_meas + 1
+		END IF 
 	END IF
 END IF
 WEND
@@ -207,6 +220,12 @@ CALL PRINT_DBL(meas_rpm)
 ;CALL PRINT_DBL (3 * duration / 1000)
 
 STATE = 1
+
+;endMeas = 0
+;second_meas = 0
+;start_meas = 0
+;ready_for_measurement = 0 
+;wait_for_second_pulse = 0 
 
 WEND
 
@@ -229,6 +248,7 @@ WEND
 DWELL start_time_delay
 
 theta = theta + deg_step
+
 
 WHILE (STATE == 2)
 
