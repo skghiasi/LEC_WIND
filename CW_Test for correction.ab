@@ -87,21 +87,21 @@ DIM second_meas AS DOUBLE
 RUN_PROG = 1
 STATE = -1 
 
-radius_proportion = .75
+radius_proportion = .8
 
 cone = 0
 rpm = 11.7 
 chord_length = 0.103
 
-MEAS_A = -100.7535
-MEAS_B = 16.7835
-DIST_TO_NOSE = 1.53
+MEAS_A = 0.5400
+MEAS_B = 6.2482
+DIST_TO_NOSE = 5.93
 R0 = 0.345
 yaw = 0
 tilt = 0 
 
 ;speed_tune = 1.0025
-speed_tune = 1
+speed_tune = 1.03
 
 ;MEAS_A = 0
 ;MEAS_B = 54.83
@@ -169,7 +169,7 @@ MOVEABS A horizontal B vertical
 VELOCITY ON
 
 
-DWELL 10
+DWELL 7
 
 STATE = 0 
 WEND 
