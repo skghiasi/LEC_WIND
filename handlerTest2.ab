@@ -1,0 +1,83 @@
+' This program executes as if the TaskTerminationAxes
+
+' parameter for this task includes only Axis X.
+DECLARATIONS 
+	GLOBAL ERROR_TIMES AS INTEGER=0	
+END DECLARATIONS 
+
+PROGRAM
+
+    DIM ErrorType AS INTEGER
+    DIM NewValue AS DOUBLE
+    DIM OldValue AS DOUBLE
+	DIM ZERO AS INTEGER
+
+    ErrorType = 0
+    OldValue = 0
+	ZERO = 0
+	
+	WAIT MODE MOVEDONE
+
+    ONTASKERROR ErrorHandler
+  
+    SETJMP
+  
+    WHILE 1
+		DWELL 3
+    	PVT A 20, 20 TIME 0.0001
+		CALL CUSTOM_HOME()
+	WEND
+END PROGRAM
+
+FUNCTION CUSTOM_HOME()
+	DIM A_POS AS DOUBLE 
+	DIM B_POS AS DOUBLE 
+	
+	A_POS = PFBK(A)
+	B_POS = PFBK(B)
+	
+	IF(A_POS <= 2) THEN 
+		A_POS = -1*(PFBK(A) - 10.0)
+		MOVEINC A A_POS
+	END IF 
+	
+	IF(B_POS <= 2) THEN 
+		B_POS = -1*(PFBK(B) - 10.0)
+		MOVEINC B B_POS 
+	END IF
+	HOME A 
+	HOME B
+END FUNCTION
+
+FUNCTION ErrorHandler()	
+	DIM A_POS AS DOUBLE 
+	DIM B_POS AS DOUBLE
+	
+	ERROR_TIMES = ERROR_TIMES+1
+	ABORT A 
+	ABORT B
+    ACKNOWLEDGEALL
+	ENABLE A
+	ENABLE B   
+	
+	
+	
+	A_POS = PFBK(A)
+	B_POS = PFBK(B)
+	
+	IF(A_POS <= 2) THEN 
+		A_POS = -1*(PFBK(A) - 10.0)
+		MOVEINC A A_POS
+	END IF 
+	
+	IF(B_POS <= 2) THEN 
+		B_POS = -1*(PFBK(B) - 10.0)
+		MOVEINC B B_POS 
+	END IF
+	HOME A 
+	HOME B
+	
+	;CALL CUSTOM_HOME()
+	
+    LONGJMP
+END FUNCTION

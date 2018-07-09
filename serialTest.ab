@@ -1,0 +1,166 @@
+; A333222B333222D22211Y669S998R899
+PROGRAM 
+DIM A AS INTEGER 
+
+DIM comcount AS INTEGER 
+DIM flushString AS STRING 
+DIM char(50) AS INTEGER
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+DIM STRING_NUM AS STRING 
+DIM DOUBLE_A AS DOUBLE
+DIM DOUBLE_B AS DOUBLE 
+DIM DOUBLE_D AS DOUBLE 
+DIM DOUBLE_Y AS DOUBLE 
+DIM DOUBLE_S AS DOUBLE
+DIM DOUBLE_R AS DOUBLE 
+
+DIM PRINT_STRING AS STRING 
+'input string format: 
+'Ammmnnn	: A pos						POS 0 - 6
+'Bmmmnnn	: B pos 					POS 7 - 13
+'Dmmmnn		: Distance to nose			POS 14 - 19
+'Ymmn		: Yaw 						POS 20 - 23
+'Smmn		: Speed						POS 24 - 27
+'Rmnn		: Span						POS 28 - 31
+DIM BEGIN_A AS INTEGER = 0 ' BEGIN POSITION OF A IN CHAR ARRAY 
+DIM END_A AS INTEGER = 6'	END POSITION OF A IN CHAR ARRAY 
+DIM DEC_A AS INTEGER = 3'	NUMBER OF DECIMAL DIGITS IN NUMBER
+
+DIM BEGIN_B AS INTEGER = 7
+DIM END_B AS INTEGER = 13
+DIM DEC_B AS INTEGER = 3
+
+DIM BEGIN_D AS INTEGER = 14
+DIM END_D AS INTEGER = 19
+DIM DEC_D AS INTEGER = 3
+
+DIM BEGIN_Y AS INTEGER = 20
+DIM END_Y AS INTEGER = 23
+DIM DEC_Y AS INTEGER = 2
+
+DIM BEGIN_S AS INTEGER = 24
+DIM END_S AS INTEGER = 27
+DIM DEC_S AS INTEGER = 2
+
+DIM BEGIN_R AS INTEGER = 28
+DIM END_R AS INTEGER = 31
+DIM DEC_R AS INTEGER = 1
+
+DIM A_ASCII AS INTEGER = 65
+DIM B_ASCII AS INTEGER = 66
+DIM D_ASCII AS INTEGER = 68
+DIM Y_ASCII AS INTEGER = 89
+DIM S_ASCII AS INTEGER = 83
+DIM R_ASCII AS INTEGER = 82
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+DIM string_len AS INTEGER
+
+DIM i AS INTEGER
+i = 0
+string_len = 32
+A = 9
+OPENCOM 0 
+DWELL 0.002
+
+WHILE 1
+	
+	comcount = READCOMCOUNT(0)
+	if(comcount >= string_len) then 
+		FOR i=0 TO(string_len - 1)STEP 1
+			char(i) = READCOMCHAR(0) - 48
+		NEXT i'		
+		if(comcount > string_len) then 
+			READCOM 0 , flushString , comcount - string_len
+		end if
+		
+		FOR i=0 TO(string_len - 1)STEP 1
+			IF(char(i)==A_ASCII-48) THEN 
+				FORMAT STRING_NUM , "%d%d%d.%d%d%d" , INTV:char(i+1), INTV:char(i+2), INTV:char(i+3), INTV:char(i+4), INTV:char(i+5), INTV:char(i+6)
+				DOUBLE_A = CDBL(STRING_NUM)
+			END IF 
+			
+			IF(char(i)==B_ASCII-48) THEN 
+				FORMAT STRING_NUM , "%d%d%d.%d%d%d" , INTV:char(i+1), INTV:char(i+2), INTV:char(i+3), INTV:char(i+4), INTV:char(i+5), INTV:char(i+6)
+				DOUBLE_B = CDBL(STRING_NUM)
+			END IF 
+			
+			IF(char(i)==D_ASCII-48) THEN 
+				FORMAT STRING_NUM , "%d%d%d.%d%d" , INTV:char(i+1), INTV:char(i+2), INTV:char(i+3), INTV:char(i+4), INTV:char(i+5)
+				DOUBLE_D = CDBL(STRING_NUM)
+			END IF 
+			
+			IF(char(i)==Y_ASCII-48) THEN 
+				FORMAT STRING_NUM , "%d%d.%d" , INTV:char(i+1), INTV:char(i+2), INTV:char(i+3)
+				DOUBLE_Y = CDBL(STRING_NUM)
+			END IF 
+			 
+			IF(char(i)==S_ASCII-48) THEN 
+				FORMAT STRING_NUM , "%d%d.%d" , INTV:char(i+1), INTV:char(i+2), INTV:char(i+3)
+				DOUBLE_S = CDBL(STRING_NUM)
+			END IF 
+			
+			IF(char(i)==R_ASCII-48) THEN 
+				FORMAT STRING_NUM , "%d.%d%d" , INTV:char(i+1), INTV:char(i+2), INTV:char(i+3)
+				DOUBLE_R = CDBL(STRING_NUM)
+			END IF 
+			
+			
+			
+			
+			
+		NEXT i'	
+	end if 
+	
+	FORMAT PRINT_STRING , "%f\n" , DBLV:DOUBLE_A
+	WRITECOM 0 , PRINT_STRING
+	FORMAT PRINT_STRING , "%f\n" , DBLV:DOUBLE_B
+	WRITECOM 0 , PRINT_STRING
+	FORMAT PRINT_STRING , "%f\n" , DBLV:DOUBLE_D
+	WRITECOM 0 , PRINT_STRING
+	FORMAT PRINT_STRING , "%f\n" , DBLV:DOUBLE_Y
+	WRITECOM 0 , PRINT_STRING
+	FORMAT PRINT_STRING , "%f\n" , DBLV:DOUBLE_S
+	WRITECOM 0 , PRINT_STRING
+	FORMAT PRINT_STRING , "%f\n" , DBLV:DOUBLE_R
+	WRITECOM 0 , PRINT_STRING
+	
+	WRITECOM 0 , "\n"
+	;CALL PRINT_DBL(DOUBLE_A)	
+	;CALL PRINT_DBL(DOUBLE_B)	
+	;CALL PRINT_DBL(DOUBLE_D)	
+	;CALL PRINT_DBL(DOUBLE_Y)	
+	;CALL PRINT_DBL(DOUBLE_S)
+	;CALL PRINT_DBL(DOUBLE_R)	
+	;PRINT("\n")
+	
+	DWELL 0.5
+	
+	 
+
+	
+WEND 
+
+CLOSECOM 0 
+
+END PROGRAM
+
+FUNCTION PRINT_DBL (BYVAL IN AS DOUBLE) AS INTEGER 
+	DIM PrintString AS STRING
+	FORMAT PrintString, "%f\n", DBLV:IN
+    PRINT PrintString
+PRINT_DBL = 0 
+END FUNCTION 
+
+FUNCTION PRINT_INT (BYVAL IN AS INTEGER) AS INTEGER 
+	DIM PrintString AS STRING
+	FORMAT PrintString, "%d\n", INTV:IN
+    PRINT PrintString
+PRINT_INT = 0 
+END FUNCTION 
+
+FUNCTION PRINT_CHAR (BYVAL IN AS INTEGER) AS INTEGER 
+	DIM PrintString AS STRING
+	FORMAT PrintString, "%d\n", INTV:IN
+    PRINT PrintString
+PRINT_CHAR = 0 
+END FUNCTION 
