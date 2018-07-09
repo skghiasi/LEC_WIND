@@ -1,0 +1,416 @@
+HEADER 
+DEFINE PI 3.141592653589793
+
+END HEADER
+
+PROGRAM
+DIM R0 AS DOUBLE
+DIM R AS DOUBLE 
+DIM cone AS DOUBLE 
+DIM tilt AS DOUBLE 
+DIM t AS DOUBLE 
+DIM radius_proportion AS DOUBLE 
+DIM STATE AS DOUBLE 
+
+
+DIM nose(3) AS DOUBLE
+
+
+DIM translation_vec(3) AS DOUBLE
+ 
+DIM vertical AS DOUBLE 
+DIM horizontal AS DOUBLE 
+
+DIM theta AS DOUBLE
+
+DIM deg_step AS DOUBLE
+DIM feedback_time AS DOUBLE
+DIM MEAS_A AS DOUBLE 
+DIM MEAS_B AS DOUBLE
+DIM DIST_TO_NOSE AS DOUBLE 
+DIM RUN_PROG AS DOUBLE 
+DIM lost_duration AS DOUBLE
+DIM duration_diff AS DOUBLE
+DIM yaw AS DOUBLE
+
+DIM chord_length AS DOUBLE
+DIM rpm AS DOUBLE
+DIM omega AS DOUBLE 
+DIM start_time_delay AS DOUBLE
+
+DIM aprime AS DOUBLE 
+DIM r_shadow AS DOUBLE
+DIM hprime AS DOUBLE
+DIM LIN_VEL AS DOUBLE
+DIM xdot AS DOUBLE 
+DIM ydot AS DOUBLE 
+DIM zdot AS DOUBLE
+DIM adot AS DOUBLE 
+DIM bdot AS DOUBLE
+DIM tana AS DOUBLE 
+DIM tanb AS DOUBLE
+DIM x AS DOUBLE 
+DIM y AS DOUBLE 
+DIM z AS DOUBLE 
+DIM meas_omega AS DOUBLE 
+DIM theta0 AS DOUBLE ; theta0 for measurements
+DIM FB AS DOUBLE 
+
+DIM x_normal AS DOUBLE
+DIM y_normal AS DOUBLE 
+DIM z_normal AS DOUBLE 
+DIM cone_translate_coeff AS DOUBLE 
+DIM x_cone_translate AS DOUBLE 
+DIM y_cone_translate AS DOUBLE 
+DIM z_cone_translate AS DOUBLE
+
+DIM a_weight AS DOUBLE 
+DIM b_weight AS DOUBLE 
+
+DIM ready_for_measurement AS DOUBLE
+
+DIM duration AS DOUBLE
+DIM meas_rpm AS DOUBLE
+DIM startMeas AS DOUBLE
+DIM endMeas AS DOUBLE
+DIM wait_for_second_pulse AS DOUBLE 
+DIM second_meas AS DOUBLE
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;STATES;;;;;;;;;;;;;;;;;;;;;;;
+;;; 0 : STATE_RPM 
+;;; 1 : STATE_START 
+;;; 2 : STATE_TRACK 
+;;; 3 : 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; turbine characteristics ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;WAIT MODE MOVEDONE
+
+RUN_PROG = 1
+STATE = -1 
+
+radius_proportion = .75
+
+cone = 0
+rpm = 11.7 
+chord_length = 0.103
+
+MEAS_A = -100.7535
+MEAS_B = 16.7835
+DIST_TO_NOSE = 1.53
+R0 = 0.345
+yaw = 0
+tilt = 0 
+
+;speed_tune = 1.0025
+speed_tune = 1
+
+;MEAS_A = 0
+;MEAS_B = 54.83
+;DIST_TO_NOSE = 104
+;R0 = 68
+;yaw = 0 
+;tilt = 8
+
+;MOVING STEPS IN DEGREES
+deg_step = 1
+;INITIAL POSITION IN DEGREE
+theta = 0
+
+
+;CONVERSION OF VARIABLES: NO CHANGE NEEDED ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+aprime = 90 + MEAS_A 
+omega = 6 * rpm
+R = R0 * radius_proportion
+t = 90 - tilt
+r_shadow = R * COS_DEG(cone)
+
+nose(0) = DIST_TO_NOSE * COS_DEG(MEAS_B) * COS_DEG(aprime)
+nose(1) = DIST_TO_NOSE * COS_DEG(MEAS_B) * SIN_DEG(aprime)
+nose(2) = DIST_TO_NOSE * SIN_DEG(MEAS_B)
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;   end turbine characteristics ;;;;;;;;;;;;;;;;;;;;;;;
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;  STATE -1 : making the first move ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
+;;; INIT POSTITION
+WHILE (RUN_PROG == 1)
+
+WHILE (STATE = -1) 
+
+;CONE NORMAL VECTOR 
+x_normal = COS_DEG(90+t)*COS_DEG(yaw+90)*COS_DEG(aprime-90) + COS_DEG(90+t)*SIN_DEG(-1*yaw-90)*COS_DEG(aprime-180)
+y_normal = COS_DEG(90+t)*COS_DEG(yaw+90)*SIN_DEG(aprime-90) + COS_DEG(90+t)*SIN_DEG(-1*yaw-90)*SIN_DEG(aprime-180)
+z_normal = SIN_DEG(90+t)
+
+cone_translate_coeff = r_shadow * TAN_DEG(cone)
+
+x_cone_translate = x_normal * cone_translate_coeff
+y_cone_translate = y_normal * cone_translate_coeff
+z_cone_translate = z_normal * cone_translate_coeff
+
+;CALCULATING POINTS IN THE COORDINATE SYSTEM (CONE INCL.)
+
+translation_vec(0) = nose(0) + r_shadow*SIN_DEG(theta)*COS_DEG(t)*COS_DEG(aprime+yaw) + r_shadow*COS_DEG(theta)*COS_DEG(aprime+yaw-90)
+translation_vec(1) = nose(1) + r_shadow*SIN_DEG(theta)*COS_DEG(t)*SIN_DEG(aprime+yaw) + r_shadow*COS_DEG(theta)*SIN_DEG(aprime+yaw-90)
+translation_vec(2) = nose(2) + r_shadow*SIN_DEG(theta)*SIN_DEG(t)
+
+translation_vec(0) = translation_vec(0) + x_cone_translate
+translation_vec(1) = translation_vec(1) + y_cone_translate
+translation_vec(2) = translation_vec(2) + z_cone_translate
+
+;END OF ADDING CONE EFFECTS
+
+vertical = FIND_VERTICAL_ANGLE(translation_vec)				
+hprime = FIND_HORIZONTAL_ANGLE(translation_vec)			
+horizontal = hprime - 90
+
+MOVEABS A horizontal B vertical								
+VELOCITY ON
+
+
+DWELL 10
+
+STATE = 0 
+WEND 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;  STATE 0 : velocity measurement ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+WHILE (STATE == 0)
+
+WHILE (endMeas == 0)
+
+IF (startMeas == 0) THEN
+	CLEARTIMER
+	IF(AIN(B,1) < .1) THEN 
+		ready_for_measurement = 1
+	END IF 
+END IF
+
+
+IF(AIN(B, 1) < .1 && startMeas == 1) THEN
+	wait_for_second_pulse = 1
+END IF 
+
+IF (AIN(B, 1) > .4 && ready_for_measurement == 1) THEN
+	IF(startMeas == 0) THEN 
+		startMeas = 1
+	END IF 
+	
+	IF(startMeas == 1 && wait_for_second_pulse == 1) THEN
+		;duration = TIMER()
+		duration = duration + TIMER()
+		startMeas = 0
+		wait_for_second_pulse = 0 
+		ready_for_measurement = 0 
+		
+		IF(second_meas == 2) then 
+			endMeas = 1
+			duration = duration / 3
+		END IF
+		IF(second_meas < 2) then 
+			second_meas = second_meas + 1
+		END IF 
+	END IF
+END IF
+WEND
+
+;CALL PRINT_DBL(duration)
+meas_rpm = CONV_BTIME_TO_RPM (duration)
+meas_omega = 6 * meas_rpm
+CALL PRINT_DBL(meas_rpm)
+;CALL PRINT_DBL (3 * duration / 1000)
+
+STATE = 1
+
+;endMeas = 0
+;second_meas = 0
+;start_meas = 0
+;ready_for_measurement = 0 
+;wait_for_second_pulse = 0 
+
+WEND
+
+CALL PRINT_DBL (meas_rpm)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; STATE 1 : wait for the next pulse ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+WHILE (STATE == 1)
+
+start_time_delay = (chord_length * 180)/(2 * R * meas_omega * PI)
+
+WHILE (AIN(B,1) < .2)  
+	LIN_VEL = LIN_VEL
+WEND
+ 
+
+STATE = 2
+
+WEND 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;  STATE 2 : main move ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+DWELL start_time_delay
+
+theta = theta + deg_step
+
+
+WHILE (STATE == 2)
+
+
+translation_vec(0) = nose(0) + r_shadow*SIN_DEG(theta)*COS_DEG(t)*COS_DEG(aprime+yaw) + r_shadow*COS_DEG(theta)*COS_DEG(aprime+yaw-90)
+translation_vec(1) = nose(1) + r_shadow*SIN_DEG(theta)*COS_DEG(t)*SIN_DEG(aprime+yaw) + r_shadow*COS_DEG(theta)*SIN_DEG(aprime+yaw-90)
+translation_vec(2) = nose(2) + r_shadow*SIN_DEG(theta)*SIN_DEG(t)
+
+cone_translate_coeff = r_shadow * TAN_DEG(cone)
+x_cone_translate = x_normal * cone_translate_coeff
+y_cone_translate = y_normal * cone_translate_coeff
+z_cone_translate = z_normal * cone_translate_coeff
+
+translation_vec(0) = translation_vec(0) + x_cone_translate
+translation_vec(1) = translation_vec(1) + y_cone_translate 
+translation_vec(2) = translation_vec(2) + z_cone_translate
+
+x = translation_vec(0)
+y = translation_vec(1)
+z = translation_vec(2)
+
+xdot = R*meas_omega*COS_DEG(theta)*COS_DEG(t)*COS_DEG(aprime+yaw) - R*meas_omega*SIN_DEG(theta)*COS_DEG(aprime+yaw-90)
+ydot = R*meas_omega*COS_DEG(theta)*COS_DEG(t)*SIN_DEG(aprime+yaw) - R*meas_omega*SIN_DEG(theta)*SIN_DEG(aprime+yaw-90)
+zdot = R*meas_omega*COS_DEG(theta)*SIN_DEG(t)
+
+tana = y/x
+adot = (ydot * x - xdot * y)/((x^2) * (1+tana^2))
+
+tanb = z/SQR(x^2 + y^2)
+bdot = (2*z*zdot*(x^2 + y^2) - z^2 * (2*x*xdot + 2*y*ydot))/(2*tanb*(1+tanb^2)*(x^2 + y^2)^2)
+
+LIN_VEL = (SQR(adot^2 + bdot^2))
+
+
+vertical = FIND_VERTICAL_ANGLE(translation_vec)				
+hprime = FIND_HORIZONTAL_ANGLE(translation_vec)			
+horizontal = hprime - 90
+
+ABS
+
+;CALL PRINT_DBL(LIN_VEL)
+LINEAR A horizontal B vertical F LIN_VEL*speed_tune 
+
+theta = theta + deg_step
+;WEND 
+IF theta > 360 THEN
+	theta = deg_step
+END IF 
+;CALL PRINT_DBL(vel)
+IF AIN(B , 1) < 0.2 THEN
+	STATE = 0	
+	FB = 1
+	CLEARTIMER	
+END IF 
+WEND
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; STATE 3 : feedback preparation ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+WHILE STATE == 3
+	IF (AIN (B , 1) > 2.5) THEN 
+		lost_duration = TIMER()		
+		CALL PRINT_DBL(lost_duration)
+		IF(lost_duration > duration )   THEN 
+			feedback_time = (duration - lost_duration)/duration
+		ELSE 
+			;feedback_time = 0.001
+			feedback_time = .1
+		END IF 
+		CLEARTIMER
+		
+		feedback_time = 0
+		STATE = 1
+	END IF 	
+WEND
+WEND ;; END OF RUNNING LOOP
+END PROGRAM
+
+FUNCTION PRINT_DBL (BYVAL IN AS DOUBLE) AS INTEGER 
+	DIM PrintString AS STRING
+	FORMAT PrintString, "%f\n", DBLV:IN
+    PRINT PrintString
+PRINT_DBL = 0 
+END FUNCTION 
+
+
+FUNCTION RAD2DEG (BYVAL IN AS DOUBLE) AS DOUBLE 
+	RAD2DEG = 180 * (IN / PI)
+END FUNCTION 
+
+FUNCTION DEG2RAD (BYVAL IN AS DOUBLE) AS DOUBLE 
+	DEG2RAD = PI / 180 * IN 
+END FUNCTION 
+
+FUNCTION COS_DEG (BYVAL IN AS DOUBLE) AS DOUBLE 	
+	DIM ANG AS DOUBLE
+	ANG = DEG2RAD(IN)
+	COS_DEG = COS(ANG)
+END FUNCTION 
+
+FUNCTION SIN_DEG (BYVAL IN AS DOUBLE) AS DOUBLE 	
+	DIM ANG AS DOUBLE
+	ANG = DEG2RAD(IN)
+	SIN_DEG = SIN(ANG)
+END FUNCTION 
+
+FUNCTION TAN_DEG (BYVAL IN AS DOUBLE) AS DOUBLE 	
+	DIM ANG AS DOUBLE
+	ANG = DEG2RAD(IN)
+	TAN_DEG = TAN(ANG)
+END FUNCTION 
+
+
+FUNCTION FIND_HORIZONTAL_ANGLE( BYREF IN(3) AS DOUBLE ) AS DOUBLE
+
+DIM x AS DOUBLE 
+DIM y AS DOUBLE 
+
+x = IN(0)
+y = IN(1)
+
+IF(x != 0) THEN 
+	IF( x < 0) THEN 
+		FIND_HORIZONTAL_ANGLE = 180 + RAD2DEG(ATN(y / x)) ;; -1 for reference system
+	ELSE 
+		FIND_HORIZONTAL_ANGLE = RAD2DEG(ATN(y / x))
+	END IF 
+ELSE 
+	IF( y < 0) THEN 
+		FIND_HORIZONTAL_ANGLE = -90
+	ELSE 
+		FIND_HORIZONTAL_ANGLE = 90
+	END IF 
+END IF 
+END FUNCTION 
+
+FUNCTION FIND_VERTICAL_ANGLE( BYREF IN(3) AS DOUBLE ) AS DOUBLE
+DIM x AS DOUBLE 
+DIM y AS DOUBLE 
+DIM z AS DOUBLE 
+DIM xy AS DOUBLE
+
+x = IN(0)
+y = IN(1)
+z = IN(2)
+
+xy = SQR(x^2 + y^2)
+
+   IF(xy != 0) THEN 
+   		FIND_VERTICAL_ANGLE = RAD2DEG(ATN(z / xy))
+   ELSE 
+   		FIND_VERTICAL_ANGLE = 90
+   END IF 
+END FUNCTION 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;	RPM MEASUREMENT 
+;	WITH TIMER 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+FUNCTION CONV_BTIME_TO_RPM (BYVAL duration AS DOUBLE) AS DOUBLE 
+	CONV_BTIME_TO_RPM = 60/ (3 * duration / 1000)
+END FUNCTION 
+
+FUNCTION MAG( BYREF IN(3) AS DOUBLE ) AS DOUBLE 
+	MAG = SQR(IN(0)^2 + IN(1)^2 + IN(2)^2)
+END FUNCTION 
