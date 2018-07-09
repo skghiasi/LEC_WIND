@@ -1,3 +1,5 @@
+'A333222B333222D22211Y669S998R899X0H0
+
 HEADER 
 DEFINE PI 3.141592653589793
 
@@ -16,6 +18,9 @@ DECLARATIONS
 	GLOBAL DOUBLE_Y AS DOUBLE 
 	GLOBAL DOUBLE_S AS DOUBLE
 	GLOBAL DOUBLE_R AS DOUBLE 
+	
+	GLOBAL DOUBLE_STOP AS DOUBLE
+	GLOBAL DOUBLE_SOFT_START AS DOUBLE 
 	
 	GLOBAL PRINT_STRING AS STRING 
 
@@ -95,7 +100,7 @@ DIM wait_for_second_pulse AS DOUBLE
 DIM second_meas AS DOUBLE
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; SERIAL COM PORT VARIABLES ;;;;;;;;;;;;;;;;;;;;;;
-
+DIM passed_time AS DOUBLE 
 OPENCOM 0 
 DWELL 0.002
 
@@ -165,7 +170,8 @@ DOUBLE_Y = yaw
 WHILE (RUN_PROG == 1)
 
 WHILE (STATE = -1) 
-
+CALL CUSTOM_HOME()
+theta = 0
 ;CONE NORMAL VECTOR 
 x_normal = COS_DEG(90+t)*COS_DEG(yaw+90)*COS_DEG(aprime-90) + COS_DEG(90+t)*SIN_DEG(-1*yaw-90)*COS_DEG(aprime-180)
 y_normal = COS_DEG(90+t)*COS_DEG(yaw+90)*SIN_DEG(aprime-90) + COS_DEG(90+t)*SIN_DEG(-1*yaw-90)*SIN_DEG(aprime-180)
@@ -272,8 +278,9 @@ start_time_delay = (chord_length * 180)/(2 * R * meas_omega * PI)
 
 WHILE (AIN(B,1) < .2)  
 	LIN_VEL = LIN_VEL
+	CALL ACQ_COMPORT()
 WEND
- 
+
 
 STATE = 2
 
@@ -287,8 +294,11 @@ theta = theta + deg_step
 WHILE (STATE == 2)
 ;;UPDATE VAR
 CALL ACQ_COMPORT()
-yaw = DOUBLE_Y
-meas_omega = 6 * DOUBLE_S
+yaw = DOUBLE_Y	'UPDATE YAW FROM COM VARIABLE 
+meas_omega = 6 * DOUBLE_S 'UPDATE RPM FROM COM VARIABLE
+
+
+
 
 translation_vec(0) = nose(0) + r_shadow*SIN_DEG(theta)*COS_DEG(t)*COS_DEG(aprime+yaw) + r_shadow*COS_DEG(theta)*COS_DEG(aprime+yaw-90)
 translation_vec(1) = nose(1) + r_shadow*SIN_DEG(theta)*COS_DEG(t)*SIN_DEG(aprime+yaw) + r_shadow*COS_DEG(theta)*SIN_DEG(aprime+yaw-90)
@@ -335,30 +345,32 @@ IF theta > 360 THEN
 	theta = deg_step
 END IF 
 ;CALL PRINT_DBL(vel)
-IF AIN(B , 1) < 0.2 THEN
+IF(DOUBLE_STOP > 0.5) THEN
+	STATE = 3
+	VELOCITY OFF 
+	DISABLE A 
+	ENABLE A
+	MOVEABS A 0 B 0 
+'	'DOUBLE_STOP = 0
+ELSEIF AIN(B , 1) < 0.2 THEN
 	STATE = 0	
 	FB = 1
 	CLEARTIMER	
-END IF 
+END IF
+
 WEND
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; STATE 3 : feedback preparation ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; STATE 3 : idle loop, waiting for COM PORT COMMAND ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 WHILE STATE == 3
-	IF (AIN (B , 1) > 2.5) THEN 
-		lost_duration = TIMER()		
-		CALL PRINT_DBL(lost_duration)
-		IF(lost_duration > duration )   THEN 
-			feedback_time = (duration - lost_duration)/duration
-		ELSE 
-			;feedback_time = 0.001
-			feedback_time = .1
-		END IF 
-		CLEARTIMER
-		
-		feedback_time = 0
-		STATE = 1
+	DWELL 0.5
+	DOUBLE_STOP = 0
+	CALL ACQ_COMPORT()
+	IF (DOUBLE_SOFT_START > 0.5) THEN 
+		DOUBLE_SOFT_START = 0
+		STATE = -1
 	END IF 	
 WEND
+ 
 WEND ;; END OF RUNNING LOOP
 END PROGRAM
 
@@ -469,12 +481,14 @@ FUNCTION ACQ_COMPORT()
 	DIM Y_ASCII AS INTEGER = 89
 	DIM S_ASCII AS INTEGER = 83
 	DIM R_ASCII AS INTEGER = 82
+	DIM X_ASCII AS INTEGER = 88
+	DIM H_ASCII AS INTEGER = 72
 	
 	DIM string_len AS INTEGER
 	
 	DIM i AS INTEGER
 	i = 0
-	string_len = 32
+	string_len = 37
 
 	comcount = READCOMCOUNT(0)
 	if(comcount >= string_len) then 
@@ -514,7 +528,18 @@ FUNCTION ACQ_COMPORT()
 			IF(char(i)==R_ASCII-48) THEN 
 				FORMAT STRING_NUM , "%d.%d%d" , INTV:char(i+1), INTV:char(i+2), INTV:char(i+3)
 				DOUBLE_R = CDBL(STRING_NUM)
+			END IF
+			
+			IF(char(i)==X_ASCII-48) THEN 
+				FORMAT STRING_NUM , "%d" , INTV:char(i+1)
+				DOUBLE_STOP = CDBL(STRING_NUM)
 			END IF 
+			
+			IF(char(i)==H_ASCII-48) THEN 				
+				FORMAT STRING_NUM , "%d" , INTV:char(i+1)
+				DOUBLE_SOFT_START = CDBL(STRING_NUM)						
+			END IF	
+			
 			
 		NEXT i'
 		
@@ -530,8 +555,42 @@ FUNCTION ACQ_COMPORT()
 '		WRITECOM 0 , PRINT_STRING
 '		FORMAT PRINT_STRING , "%f\n" , DBLV:DOUBLE_R
 '		WRITECOM 0 , PRINT_STRING
+'		FORMAT PRINT_STRING , "%f\n" , DBLV:DOUBLE_STOP
+'		WRITECOM 0 , PRINT_STRING
+'		FORMAT PRINT_STRING , "%f\n" , DBLV:DOUBLE_SOFT_START
+'		WRITECOM 0 , PRINT_STRING
 '		
 '		WRITECOM 0 , "\n"
 	end if 
 
 END FUNCTION 
+
+FUNCTION CUSTOM_HOME()
+	DIM A_POS AS DOUBLE 
+	DIM B_POS AS DOUBLE 
+	
+'	ABORT A 
+'	ABORT B	
+	VELOCITY OFF
+	DISABLE A 
+	ENABLE A 
+	DISABLE B 
+	ENABLE B
+	
+	A_POS = PFBK(A)
+	B_POS = PFBK(B)
+	
+	IF(A_POS <= 2) THEN 
+		A_POS = -1*(PFBK(A) - 10.0)
+		CALL PRINT_DBL(A_POS)
+		MOVEINC A A_POS
+	END IF 
+	
+	IF(B_POS <= 2) THEN 
+		B_POS = -1*(PFBK(B) - 10.0)
+		MOVEINC B B_POS 
+	END IF
+	HOME A 
+	HOME B
+	
+END FUNCTION
