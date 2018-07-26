@@ -1,0 +1,633 @@
+'A333222B333222D22211Y669S998R899X0H0
+
+HEADER 
+DEFINE PI 3.141592653589793
+
+END HEADER
+
+DECLARATIONS 
+
+ 	GLOBAL comcount AS INTEGER 
+	GLOBAL flushString AS STRING 
+	GLOBAL char(50) AS INTEGER
+	;;;;;;;;;;;;;;;;;;;;;;
+	GLOBAL STRING_NUM AS STRING 
+	GLOBAL DOUBLE_A AS DOUBLE
+	GLOBAL DOUBLE_B AS DOUBLE 
+	GLOBAL DOUBLE_D AS DOUBLE 
+	GLOBAL DOUBLE_Y AS DOUBLE 
+	GLOBAL DOUBLE_S AS DOUBLE
+	GLOBAL DOUBLE_R AS DOUBLE 
+	
+	GLOBAL ERROR_TIMES AS INTEGER
+	GLOBAL DOUBLE_STOP AS DOUBLE
+	GLOBAL DOUBLE_SOFT_START AS DOUBLE 
+	
+	GLOBAL PRINT_STRING AS STRING 
+
+END DECLARATIONS 
+
+PROGRAM
+DIM R0 AS DOUBLE
+DIM R AS DOUBLE 
+DIM cone AS DOUBLE 
+DIM tilt AS DOUBLE 
+DIM t AS DOUBLE 
+DIM radius_proportion AS DOUBLE 
+DIM STATE AS DOUBLE 
+
+
+DIM nose(3) AS DOUBLE
+
+
+DIM translation_vec(3) AS DOUBLE
+ 
+DIM vertical AS DOUBLE 
+DIM horizontal AS DOUBLE 
+
+DIM theta AS DOUBLE
+
+DIM deg_step AS DOUBLE
+DIM feedback_time AS DOUBLE
+DIM MEAS_A AS DOUBLE 
+DIM MEAS_B AS DOUBLE
+DIM DIST_TO_NOSE AS DOUBLE 
+DIM RUN_PROG AS DOUBLE 
+DIM lost_duration AS DOUBLE
+DIM duration_diff AS DOUBLE
+DIM yaw AS DOUBLE
+
+DIM chord_length AS DOUBLE
+DIM rpm AS DOUBLE
+DIM omega AS DOUBLE 
+DIM start_time_delay AS DOUBLE
+
+DIM aprime AS DOUBLE 
+DIM r_shadow AS DOUBLE
+DIM hprime AS DOUBLE
+DIM LIN_VEL AS DOUBLE
+DIM xdot AS DOUBLE 
+DIM ydot AS DOUBLE 
+DIM zdot AS DOUBLE
+DIM adot AS DOUBLE 
+DIM bdot AS DOUBLE
+DIM tana AS DOUBLE 
+DIM tanb AS DOUBLE
+DIM x AS DOUBLE 
+DIM y AS DOUBLE 
+DIM z AS DOUBLE 
+DIM meas_omega AS DOUBLE 
+DIM theta0 AS DOUBLE ; theta0 for measurements
+DIM FB AS DOUBLE 
+
+DIM x_normal AS DOUBLE
+DIM y_normal AS DOUBLE 
+DIM z_normal AS DOUBLE 
+DIM cone_translate_coeff AS DOUBLE 
+DIM x_cone_translate AS DOUBLE 
+DIM y_cone_translate AS DOUBLE 
+DIM z_cone_translate AS DOUBLE
+
+DIM a_weight AS DOUBLE 
+DIM b_weight AS DOUBLE 
+
+DIM ready_for_measurement AS DOUBLE
+
+DIM duration AS DOUBLE
+DIM meas_rpm AS DOUBLE
+DIM startMeas AS DOUBLE
+DIM endMeas AS DOUBLE
+DIM wait_for_second_pulse AS DOUBLE 
+DIM second_meas AS DOUBLE
+
+DIM MIN_PROFILE_THETA AS DOUBLE 
+DIM MAX_PROFILE_THETA AS DOUBLE 
+
+DIM profile_deg_step AS DOUBLE 
+DIM profile_span_step AS DOUBLE
+DIM initial_profile_proportion AS DOUBLE 
+DIM com_print_string AS STRING
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; SERIAL COM PORT VARIABLES ;;;;;;;;;;;;;;;;;;;;;;
+DIM passed_time AS DOUBLE
+
+OPENCOM 0 
+DWELL 0.002
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;STATES;;;;;;;;;;;;;;;;;;;;;;;
+;;; 0 : STATE_RPM 
+;;; 1 : STATE_START 
+;;; 2 : STATE_TRACK 
+;;; 3 : 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; turbine characteristics ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;WAIT MODE MOVEDONE
+
+RUN_PROG = 1
+STATE = -1 
+
+radius_proportion = .1
+initial_profile_proportion = 0.5
+
+cone = 0
+rpm = 11.7 
+chord_length = 0.103
+
+MEAS_A = -17.8577
+MEAS_B = 15.7027
+DIST_TO_NOSE = 2.31
+R0 = 0.345
+yaw = 0
+tilt = 0 
+
+'MEAS_A = -37.2643
+'MEAS_B = 12.3858
+'DIST_TO_NOSE = 2.9
+'R0 = 0.6
+
+;speed_tune = 1.0025
+speed_tune = 1.03
+profile_deg_step = 0.5
+profile_span_step = 0.2
+;MEAS_A = 0
+;MEAS_B = 54.83
+;DIST_TO_NOSE = 104
+;R0 = 68
+;yaw = 0 
+;tilt = 8
+
+;MOVING STEPS IN DEGREES
+deg_step = 1
+;INITIAL POSITION IN DEGREE
+theta = 0
+
+
+;CONVERSION OF VARIABLES: NO CHANGE NEEDED ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+aprime = 90 + MEAS_A 
+omega = 6 * rpm
+R = R0 * initial_profile_proportion
+t = 90 - tilt
+r_shadow = R * COS_DEG(cone)
+
+nose(0) = DIST_TO_NOSE * COS_DEG(MEAS_B) * COS_DEG(aprime)
+nose(1) = DIST_TO_NOSE * COS_DEG(MEAS_B) * SIN_DEG(aprime)
+nose(2) = DIST_TO_NOSE * SIN_DEG(MEAS_B)
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;   end turbine characteristics ;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;; INITIALIZE COM VARIABLES;;;;;;;;;;;;;;;;;;;;;;
+DOUBLE_A = MEAS_A 
+DOUBLE_B = MEAS_B 
+
+DOUBLE_D = DIST_TO_NOSE
+DOUBLE_Y = yaw
+
+DOUBLE_R = radius_proportion
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;  STATE -1 : making the first move ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
+;;; INIT POSTITION
+WHILE (RUN_PROG == 1)
+
+WHILE (STATE = -1) 
+CALL CUSTOM_HOME()
+theta = 0
+;CONE NORMAL VECTOR 
+x_normal = COS_DEG(90+t)*COS_DEG(yaw+90)*COS_DEG(aprime-90) + COS_DEG(90+t)*SIN_DEG(-1*yaw-90)*COS_DEG(aprime-180)
+y_normal = COS_DEG(90+t)*COS_DEG(yaw+90)*SIN_DEG(aprime-90) + COS_DEG(90+t)*SIN_DEG(-1*yaw-90)*SIN_DEG(aprime-180)
+z_normal = SIN_DEG(90+t)
+
+cone_translate_coeff = r_shadow * TAN_DEG(cone)
+
+x_cone_translate = x_normal * cone_translate_coeff
+y_cone_translate = y_normal * cone_translate_coeff
+z_cone_translate = z_normal * cone_translate_coeff
+
+;CALCULATING POINTS IN THE COORDINATE SYSTEM (CONE INCL.)
+
+translation_vec(0) = nose(0) + r_shadow*SIN_DEG(theta)*COS_DEG(t)*COS_DEG(aprime+yaw) + r_shadow*COS_DEG(theta)*COS_DEG(aprime+yaw-90)
+translation_vec(1) = nose(1) + r_shadow*SIN_DEG(theta)*COS_DEG(t)*SIN_DEG(aprime+yaw) + r_shadow*COS_DEG(theta)*SIN_DEG(aprime+yaw-90)
+translation_vec(2) = nose(2) + r_shadow*SIN_DEG(theta)*SIN_DEG(t)
+
+translation_vec(0) = translation_vec(0) + x_cone_translate
+translation_vec(1) = translation_vec(1) + y_cone_translate
+translation_vec(2) = translation_vec(2) + z_cone_translate
+
+;END OF ADDING CONE EFFECTS
+
+vertical = FIND_VERTICAL_ANGLE(translation_vec)				
+hprime = FIND_HORIZONTAL_ANGLE(translation_vec)			
+horizontal = hprime - 90
+
+MOVEABS A horizontal B vertical								
+VELOCITY ON
+
+
+DWELL 2
+
+STATE = 2
+WEND 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;  STATE 2 : main move ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+'DWELL start_time_delay
+
+theta = theta + deg_step
+
+
+WHILE (STATE == 2)
+;;UPDATE VAR
+CALL ACQ_COMPORT()
+yaw = DOUBLE_Y	'UPDATE YAW FROM COM VARIABLE 
+meas_omega = 6 * DOUBLE_S 'UPDATE RPM FROM COM VARIABLE
+;radius_proportion = DOUBLE_R
+;R = R0 * initial_profile_proportion 'Update radius proportion 
+;r_shadow = R * COS_DEG(cone) 'Update radius proportion 
+
+
+
+
+translation_vec(0) = nose(0) + r_shadow*SIN_DEG(theta)*COS_DEG(t)*COS_DEG(aprime+yaw) + r_shadow*COS_DEG(theta)*COS_DEG(aprime+yaw-90)
+translation_vec(1) = nose(1) + r_shadow*SIN_DEG(theta)*COS_DEG(t)*SIN_DEG(aprime+yaw) + r_shadow*COS_DEG(theta)*SIN_DEG(aprime+yaw-90)
+translation_vec(2) = nose(2) + r_shadow*SIN_DEG(theta)*SIN_DEG(t)
+
+cone_translate_coeff = r_shadow * TAN_DEG(cone)
+x_cone_translate = x_normal * cone_translate_coeff
+y_cone_translate = y_normal * cone_translate_coeff
+z_cone_translate = z_normal * cone_translate_coeff
+
+translation_vec(0) = translation_vec(0) + x_cone_translate
+translation_vec(1) = translation_vec(1) + y_cone_translate 
+translation_vec(2) = translation_vec(2) + z_cone_translate
+
+x = translation_vec(0)
+y = translation_vec(1)
+z = translation_vec(2)
+
+
+vertical = FIND_VERTICAL_ANGLE(translation_vec)				
+hprime = FIND_HORIZONTAL_ANGLE(translation_vec)			
+horizontal = hprime - 90
+
+ABS
+
+
+LINEAR A horizontal B vertical F 3
+
+
+theta = theta + deg_step
+;WEND 
+IF theta > 360 THEN
+	theta = deg_step
+END IF 
+;CALL PRINT_DBL(vel)
+IF(DOUBLE_STOP > 0.5) THEN
+	STATE = 3
+	VELOCITY OFF 
+	DISABLE B
+	DISABLE A
+	ENABLE B
+	ENABLE A
+	MOVEABS A 0 B 0 
+'	'DOUBLE_STOP = 0
+ELSEIF AIN(B , 1) > 0.2 THEN
+	mid_theta = theta
+	;mid_theta = 45
+	R = R0 * radius_proportion 'Update radius proportion 
+	r_shadow = R * COS_DEG(cone) 'Update radius proportion 
+	VELOCITY OFF
+	STATE = 3
+	DISABLE B 
+	DISABLE A 
+	ENABLE A 
+	ENABLE B 
+	;MOVEABS A 0 B 0 
+	FB = 1
+	CLEARTIMER	
+END IF
+
+WEND
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; STATE 3 : idle loop, waiting for COM PORT COMMAND ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+WHILE STATE == 3
+	;CALL PRINT_DBL(theta)
+	;DWELL 2
+	
+	MIN_PROFILE_THETA = mid_theta - 30
+	MAX_PROFILE_THETA = mid_theta + 30
+	
+	theta = MIN_PROFILE_THETA
+	
+	;CALL PRINT_DBL(theta)
+	
+	translation_vec(0) = nose(0) + r_shadow*SIN_DEG(theta)*COS_DEG(t)*COS_DEG(aprime+yaw) + r_shadow*COS_DEG(theta)*COS_DEG(aprime+yaw-90)
+	translation_vec(1) = nose(1) + r_shadow*SIN_DEG(theta)*COS_DEG(t)*SIN_DEG(aprime+yaw) + r_shadow*COS_DEG(theta)*SIN_DEG(aprime+yaw-90)
+	translation_vec(2) = nose(2) + r_shadow*SIN_DEG(theta)*SIN_DEG(t)
+	
+	cone_translate_coeff = r_shadow * TAN_DEG(cone)
+	x_cone_translate = x_normal * cone_translate_coeff
+	y_cone_translate = y_normal * cone_translate_coeff
+	z_cone_translate = z_normal * cone_translate_coeff
+	
+	translation_vec(0) = translation_vec(0) + x_cone_translate
+	translation_vec(1) = translation_vec(1) + y_cone_translate 
+	translation_vec(2) = translation_vec(2) + z_cone_translate
+	
+	x = translation_vec(0)
+	y = translation_vec(1)
+	z = translation_vec(2)
+		
+	vertical = FIND_VERTICAL_ANGLE(translation_vec)				
+	hprime = FIND_HORIZONTAL_ANGLE(translation_vec)			
+	horizontal = hprime - 90
+	
+	ABS
+	
+	
+	;MOVEABS A horizontal B vertical F 5
+	
+	DISABLE B 
+	DISABLE A 
+	ENABLE A 
+	ENABLE B 
+	MOVEABS A horizontal B vertical F 5
+	
+	STATE = 4 
+	
+WEND
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; STATE 4 : moving along a blade
+WHILE STATE == 4
+	DWELL 3
+	FOR theta=MIN_PROFILE_THETA TO(MAX_PROFILE_THETA)STEP profile_deg_step
+	
+		translation_vec(0) = nose(0) + r_shadow*SIN_DEG(theta)*COS_DEG(t)*COS_DEG(aprime+yaw) + r_shadow*COS_DEG(theta)*COS_DEG(aprime+yaw-90)
+		translation_vec(1) = nose(1) + r_shadow*SIN_DEG(theta)*COS_DEG(t)*SIN_DEG(aprime+yaw) + r_shadow*COS_DEG(theta)*SIN_DEG(aprime+yaw-90)
+		translation_vec(2) = nose(2) + r_shadow*SIN_DEG(theta)*SIN_DEG(t)
+		
+		cone_translate_coeff = r_shadow * TAN_DEG(cone)
+		x_cone_translate = x_normal * cone_translate_coeff
+		y_cone_translate = y_normal * cone_translate_coeff
+		z_cone_translate = z_normal * cone_translate_coeff
+		
+		translation_vec(0) = translation_vec(0) + x_cone_translate
+		translation_vec(1) = translation_vec(1) + y_cone_translate 
+		translation_vec(2) = translation_vec(2) + z_cone_translate
+		
+		x = translation_vec(0)
+		y = translation_vec(1)
+		z = translation_vec(2)
+		
+		
+		
+		vertical = FIND_VERTICAL_ANGLE(translation_vec)				
+		hprime = FIND_HORIZONTAL_ANGLE(translation_vec)			
+		horizontal = hprime - 90
+		
+		ABS
+		
+		
+		LINEAR A horizontal B vertical F 1
+		
+		send_a_com = PFBK(A) 
+		send_b_com = PFBK(B)
+		FORMAT com_print_string , "A:%f B:%f\n" , DBLV:send_a_com , DBLV:send_b_com
+		WRITECOM 0 , com_print_string
+		
+	NEXT theta 
+	
+	STATE = 5
+	
+WEND
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; STATE = 5 : REST ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+WHILE STATE == 5
+	IF(radius_proportion < 1) THEN
+		radius_proportion = radius_proportion + profile_span_step
+		R = R0 * radius_proportion 'Update radius proportion 
+		r_shadow = R * COS_DEG(cone) 'Update radius proportion
+		STATE = 3
+	END IF	
+WEND 
+
+WEND ;; END OF RUNNING LOOP
+END PROGRAM
+
+FUNCTION PRINT_DBL (BYVAL IN AS DOUBLE) AS INTEGER 
+	DIM PrintString AS STRING
+	FORMAT PrintString, "%f\n", DBLV:IN
+    PRINT PrintString
+PRINT_DBL = 0 
+END FUNCTION 
+
+
+FUNCTION RAD2DEG (BYVAL IN AS DOUBLE) AS DOUBLE 
+	RAD2DEG = 180 * (IN / PI)
+END FUNCTION 
+
+FUNCTION DEG2RAD (BYVAL IN AS DOUBLE) AS DOUBLE 
+	DEG2RAD = PI / 180 * IN 
+END FUNCTION 
+
+FUNCTION COS_DEG (BYVAL IN AS DOUBLE) AS DOUBLE 	
+	DIM ANG AS DOUBLE
+	ANG = DEG2RAD(IN)
+	COS_DEG = COS(ANG)
+END FUNCTION 
+
+FUNCTION SIN_DEG (BYVAL IN AS DOUBLE) AS DOUBLE 	
+	DIM ANG AS DOUBLE
+	ANG = DEG2RAD(IN)
+	SIN_DEG = SIN(ANG)
+END FUNCTION 
+
+FUNCTION TAN_DEG (BYVAL IN AS DOUBLE) AS DOUBLE 	
+	DIM ANG AS DOUBLE
+	ANG = DEG2RAD(IN)
+	TAN_DEG = TAN(ANG)
+END FUNCTION 
+
+
+FUNCTION FIND_HORIZONTAL_ANGLE( BYREF IN(3) AS DOUBLE ) AS DOUBLE
+
+DIM x AS DOUBLE 
+DIM y AS DOUBLE 
+
+x = IN(0)
+y = IN(1)
+
+IF(x != 0) THEN 
+	IF( x < 0) THEN 
+		FIND_HORIZONTAL_ANGLE = 180 + RAD2DEG(ATN(y / x)) ;; -1 for reference system
+	ELSE 
+		FIND_HORIZONTAL_ANGLE = RAD2DEG(ATN(y / x))
+	END IF 
+ELSE 
+	IF( y < 0) THEN 
+		FIND_HORIZONTAL_ANGLE = -90
+	ELSE 
+		FIND_HORIZONTAL_ANGLE = 90
+	END IF 
+END IF 
+END FUNCTION 
+
+FUNCTION FIND_VERTICAL_ANGLE( BYREF IN(3) AS DOUBLE ) AS DOUBLE
+DIM x AS DOUBLE 
+DIM y AS DOUBLE 
+DIM z AS DOUBLE 
+DIM xy AS DOUBLE
+
+x = IN(0)
+y = IN(1)
+z = IN(2)
+
+xy = SQR(x^2 + y^2)
+
+   IF(xy != 0) THEN 
+   		FIND_VERTICAL_ANGLE = RAD2DEG(ATN(z / xy))
+   ELSE 
+   		FIND_VERTICAL_ANGLE = 90
+   END IF 
+END FUNCTION 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;	RPM MEASUREMENT 
+;	WITH TIMER 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+FUNCTION CONV_BTIME_TO_RPM (BYVAL duration AS DOUBLE) AS DOUBLE 
+	CONV_BTIME_TO_RPM = 60/ (3 * duration / 1000)
+END FUNCTION 
+
+FUNCTION MAG( BYREF IN(3) AS DOUBLE ) AS DOUBLE 
+	MAG = SQR(IN(0)^2 + IN(1)^2 + IN(2)^2)
+END FUNCTION 
+
+FUNCTION ACQ_COMPORT()
+	
+	'input string format: 
+	'Ammmnnn	: A pos						POS 0 - 6
+	'Bmmmnnn	: B pos 					POS 7 - 13
+	'Dmmmnn		: Distance to nose			POS 14 - 19
+	'Ymmn		: Yaw 						POS 20 - 23
+	'Smmn		: Speed						POS 24 - 27
+	'Rmnn		: Span						POS 28 - 31
+	
+	
+	DIM A_ASCII AS INTEGER = 65
+	DIM B_ASCII AS INTEGER = 66
+	DIM D_ASCII AS INTEGER = 68
+	DIM Y_ASCII AS INTEGER = 89
+	DIM S_ASCII AS INTEGER = 83
+	DIM R_ASCII AS INTEGER = 82
+	DIM X_ASCII AS INTEGER = 88
+	DIM H_ASCII AS INTEGER = 72
+	
+	DIM string_len AS INTEGER
+	
+	DIM i AS INTEGER
+	i = 0
+	string_len = 38
+
+	comcount = READCOMCOUNT(0)
+	if(comcount >= string_len) then 
+		FOR i=0 TO(string_len - 1)STEP 1
+			char(i) = READCOMCHAR(0) - 48
+		NEXT i'		
+		if(comcount > string_len) then 
+			READCOM 0 , flushString , comcount - string_len
+		end if
+		
+		FOR i=0 TO(string_len - 1)STEP 1
+			IF(char(i)==A_ASCII-48) THEN 
+				FORMAT STRING_NUM , "%d%d%d.%d%d%d" , INTV:char(i+1), INTV:char(i+2), INTV:char(i+3), INTV:char(i+4), INTV:char(i+5), INTV:char(i+6)
+				DOUBLE_A = CDBL(STRING_NUM)
+			END IF 
+			
+			IF(char(i)==B_ASCII-48) THEN 
+				FORMAT STRING_NUM , "%d%d%d.%d%d%d" , INTV:char(i+1), INTV:char(i+2), INTV:char(i+3), INTV:char(i+4), INTV:char(i+5), INTV:char(i+6)
+				DOUBLE_B = CDBL(STRING_NUM)
+			END IF 
+			
+			IF(char(i)==D_ASCII-48) THEN 
+				FORMAT STRING_NUM , "%d%d%d.%d%d" , INTV:char(i+1), INTV:char(i+2), INTV:char(i+3), INTV:char(i+4), INTV:char(i+5)
+				DOUBLE_D = CDBL(STRING_NUM)
+			END IF 
+			
+			IF(char(i)==Y_ASCII-48) THEN 
+				FORMAT STRING_NUM , "%d%d%d.%d" , INTV:char(i+1), INTV:char(i+2), INTV:char(i+3), INTV:char(i+4)
+				DOUBLE_Y = CDBL(STRING_NUM)
+			END IF 
+			 
+			IF(char(i)==S_ASCII-48) THEN 
+				FORMAT STRING_NUM , "%d%d.%d%d" , INTV:char(i+1), INTV:char(i+2), INTV:char(i+3), INTV:char(i+4)
+				DOUBLE_S = CDBL(STRING_NUM)
+			END IF 
+			
+			IF(char(i)==R_ASCII-48) THEN 
+				FORMAT STRING_NUM , "%d.%d%d" , INTV:char(i+1), INTV:char(i+2), INTV:char(i+3)
+				DOUBLE_R = CDBL(STRING_NUM)
+			END IF
+			
+			IF(char(i)==X_ASCII-48) THEN 
+				FORMAT STRING_NUM , "%d" , INTV:char(i+1)
+				DOUBLE_STOP = CDBL(STRING_NUM)
+			END IF 
+			
+			IF(char(i)==H_ASCII-48) THEN 				
+				FORMAT STRING_NUM , "%d" , INTV:char(i+1)
+				DOUBLE_SOFT_START = CDBL(STRING_NUM)						
+			END IF	
+			
+			
+		NEXT i'
+		
+'		FORMAT PRINT_STRING , "%f\n" , DBLV:DOUBLE_A
+'		WRITECOM 0 , PRINT_STRING
+'		FORMAT PRINT_STRING , "%f\n" , DBLV:DOUBLE_B
+'		WRITECOM 0 , PRINT_STRING
+'		FORMAT PRINT_STRING , "%f\n" , DBLV:DOUBLE_D
+'		WRITECOM 0 , PRINT_STRING
+'		FORMAT PRINT_STRING , "%f\n" , DBLV:DOUBLE_Y
+'		WRITECOM 0 , PRINT_STRING
+'		FORMAT PRINT_STRING , "%f\n" , DBLV:DOUBLE_S
+'		WRITECOM 0 , PRINT_STRING
+'		FORMAT PRINT_STRING , "%f\n" , DBLV:DOUBLE_R
+'		WRITECOM 0 , PRINT_STRING
+'		FORMAT PRINT_STRING , "%f\n" , DBLV:DOUBLE_STOP
+'		WRITECOM 0 , PRINT_STRING
+'		FORMAT PRINT_STRING , "%f\n" , DBLV:DOUBLE_SOFT_START
+'		WRITECOM 0 , PRINT_STRING
+'		
+'		WRITECOM 0 , "\n"
+	end if 
+
+END FUNCTION 
+
+FUNCTION CUSTOM_HOME()
+	DIM A_POS AS DOUBLE 
+	DIM B_POS AS DOUBLE 
+	
+'	ABORT A 
+'	ABORT B	
+	VELOCITY OFF
+	DISABLE A 
+	ENABLE A 
+	DISABLE B 
+	ENABLE B
+	
+	A_POS = PFBK(A)
+	B_POS = PFBK(B)
+	
+	IF(A_POS <= 2) THEN 
+		A_POS = -1*(PFBK(A) - 10.0)
+		CALL PRINT_DBL(A_POS)
+		MOVEINC A A_POS
+	END IF 
+	
+	IF(B_POS <= 2) THEN 
+		B_POS = -1*(PFBK(B) - 10.0)
+		MOVEINC B B_POS 
+	END IF
+	HOME A 
+	HOME B
+	
+END FUNCTION
+
